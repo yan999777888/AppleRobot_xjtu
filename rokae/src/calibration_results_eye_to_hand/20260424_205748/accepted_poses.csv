@@ -1,0 +1,16 @@
+index,x,y,z,rx,ry,rz,image
+1,0.49674,0.171863,0.0861481,-2.99363,0.152233,1.9495,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_001.png
+2,0.574882,0.172653,0.35178,-2.94514,0.125164,1.7495,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_002.png
+3,0.548687,0.163001,0.300755,-2.91812,-0.0695462,2.06051,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_003.png
+4,0.593554,0.168809,0.364906,-2.93482,0.208075,1.70304,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_004.png
+5,0.590465,0.234852,0.276422,-2.77246,0.183892,1.89222,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_005.png
+6,0.46345,0.213056,0.303073,-2.90194,0.207245,2.1161,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_006.png
+7,0.517388,0.201284,0.299685,-2.86588,0.114826,1.80348,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_007.png
+8,0.516475,0.153225,0.360394,-3.01869,0.0998227,2.16284,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_008.png
+9,0.50932,0.25025,0.320765,-2.98315,0.382834,2.12177,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_009.png
+10,0.603494,0.246833,0.320281,-2.76094,0.205765,1.83751,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_010.png
+11,0.491888,0.162922,0.294645,-3.03186,0.0996879,1.84625,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_011.png
+12,0.511073,0.237665,0.339113,-3.1062,0.18287,1.89097,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_012.png
+13,0.556159,0.221793,0.353723,-3.12557,0.0302834,1.71973,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_013.png
+14,0.491015,0.205114,0.31611,3.14048,0.35013,1.93719,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_014.png
+15,0.543143,0.247521,0.29866,-2.94136,0.172169,1.80104,/home/y/dual_rokae_ws/src/rokae/src/calibration_results_eye_to_hand/20260424_205748/pose_015.png

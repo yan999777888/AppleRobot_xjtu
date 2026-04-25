@@ -1,0 +1,23 @@
+<launch>
+  <!-- Robot model -->
+  <param name="robot_description" command="$(find xacro)/xacro $(find rokae_description)/urdf/dual_arm_xmate.xacro"/>
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+  <node name="gmapping" pkg="gmapping" type="slam_gmapping">
+    <param name="base_frame" value="base_link"/>
+    <param name="odom_frame" value="odom"/>
+    <param name="map_update_interval" value="5.0"/>
+  </node>
+  <node name="move_base" pkg="move_base" type="move_base">
+    <rosparam file="$(find qt_ros_nav)/config/move_base_params.yaml" command="load"/>
+  </node>
+  <node name="amcl" pkg="amcl" type="amcl">
+    <rosparam file="$(find qt_ros_nav)/config/amcl_params.yaml" command="load"/>
+  </node>
+  <!--
+    建图模式下不要默认启动 map_server。
+    当前 `saved_map.pgm` 还是空文件，直接加载会向 /map 发布非法空地图，
+    进而触发 RViz 的 Map 显示和 Ogre 包围盒断言崩溃。
+    如果进入“定位/回放模式”，再单独启用有效地图文件。
+  -->
+  <node name="qt_ros_nav" pkg="qt_ros_nav" type="qt_ros_nav"/>
+</launch>

@@ -1,0 +1,12 @@
+# 客户端请求时发送的数据
+std_msgs/Header header
+uint32 id
+float64 x
+float64 y
+float64 z
+float32 size
+---
+# 服务器响应发送的数据
+uint8 status
+bool success
+string message

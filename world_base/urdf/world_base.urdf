@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="world_base">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0.00014012721755856 0.558613044334634 -1.26197690160727E-07"
+        rpy="0 0 0" />
+      <mass
+        value="78.1414553872871" />
+      <inertia
+        ixx="1.99015899213176"
+        ixy="9.93521448675514E-06"
+        ixz="-2.62144930599073E-07"
+        iyy="1.07257977119024"
+        iyz="-2.65099286314945E-07"
+        izz="2.10659174047258" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://world_base/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.752941176470588 0.752941176470588 0.752941176470588 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://world_base/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+</robot>

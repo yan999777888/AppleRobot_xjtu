@@ -1,0 +1,470 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1600</width>
+    <height>950</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>苹果采摘机器人果园导航控制系统</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QMainWindow{
+	background-color:#f5f7fa;
+    font-size:16px;
+}
+QTabWidget::pane{
+	border:1px solid #e0e0e0;
+	border-radius:6px;
+	background-color:white;
+}
+QTabBar::tab{
+	min-width:220px;
+	min-height:40px;
+	font-size:16px;
+	padding:4px 10px;
+}
+QTabBar::tab:selected{
+	background-color:qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 #73b5ff, stop:1 #4285f4);
+	color:white;
+	border-radius:6px 6px 0px 0;
+}
+QPushButton{
+	min-height:30px;
+	font-size:14px;
+	background-color:qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 #73b5ff, stop:1 #4285f4);
+	color:white;
+	border:none;
+	border-radius:6px;
+}
+QPushButton:hover{
+	background-color:qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 #86c0ff, stop:1 #5294ff);
+}
+QPushButton:pressed{
+	background-color:qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 #4285f4, stop:1 #3367d6);
+}
+QLabel{
+	font-size:16px;
+}
+#label_title{
+	font-size:26px;
+	font-weight:bold;
+	color:#2c3e50;
+	min-height:45px;
+	qproperty-alignment: 'AlignCenter | AlignVCenter';
+}
+#label_pick{
+	font-size:20px;
+	color:#7f8c8d;
+}
+</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <property name="spacing">
+     <number>20</number>
+    </property>
+    <property name="leftMargin">
+     <number>30</number>
+    </property>
+    <property name="topMargin">
+     <number>20</number>
+    </property>
+    <property name="rightMargin">
+     <number>30</number>
+    </property>
+    <property name="bottomMargin">
+     <number>30</number>
+    </property>
+    <item>
+     <layout class="QHBoxLayout" name="horizontalLayout_logo">
+      <property name="spacing">
+       <number>25</number>
+      </property>
+      <item>
+       <widget class="QLabel" name="label_logo">
+        <property name="minimumSize">
+         <size>
+          <width>150</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>160</width>
+          <height>45</height>
+         </size>
+        </property>
+        <property name="pixmap">
+         <pixmap resource="../resources/icons.qrc">:/icons/logo.png</pixmap>
+        </property>
+        <property name="scaledContents">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="label_title">
+        <property name="text">
+         <string>西安交通大学工业产品工程研究所苹果采摘机器人控制系统</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>600</height>
+       </size>
+      </property>
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="tab_integrated">
+       <attribute name="title">
+        <string>机器人感知导航与采摘集成控制</string>
+       </attribute>
+       <layout class="QHBoxLayout" name="horizontalLayout_integrated">
+        <property name="spacing">
+         <number>10</number>
+        </property>
+        <property name="leftMargin"><number>8</number></property>
+        <property name="topMargin"><number>8</number></property>
+        <property name="rightMargin"><number>8</number></property>
+        <property name="bottomMargin"><number>8</number></property>
+        <item>
+         <widget class="QGroupBox" name="groupBox_visual_feedback">
+          <property name="title">
+           <string>实时视觉反馈</string>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>3</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_visual_feedback">
+           <property name="spacing"><number>6</number></property>
+           <item>
+            <widget class="QLabel" name="label_detection_image">
+             <property name="text"><string>等待图像...</string></property>
+             <property name="alignment"><set>Qt::AlignCenter</set></property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="label_apple_count">
+             <property name="text"><string>检测到苹果数量: 0</string></property>
+             <property name="font">
+              <font><pointsize>10</pointsize><weight>75</weight><bold>true</bold></font>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QTableWidget" name="tableWidget_apple_coords">
+             <property name="maximumHeight"><number>100</number></property>
+             <column><property name="text"><string>ID</string></property></column>
+             <column><property name="text"><string>X</string></property></column>
+             <column><property name="text"><string>Y</string></property></column>
+             <column><property name="text"><string>Z</string></property></column>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QWidget" name="widget_right_panel">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+            <horstretch>2</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumWidth">
+           <number>420</number>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_right_panel">
+           <property name="spacing"><number>8</number></property>
+           <property name="leftMargin"><number>0</number></property>
+           <property name="topMargin"><number>0</number></property>
+           <property name="rightMargin"><number>0</number></property>
+           <property name="bottomMargin"><number>0</number></property>
+           <item>
+            <widget class="QWidget" name="rviz_container">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+               <horstretch>0</horstretch>
+               <verstretch>2</verstretch>
+              </sizepolicy>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="groupBox_nav_control">
+             <property name="title">
+              <string>导航系统控制</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_nav_control">
+              <property name="spacing"><number>6</number></property>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_fusion">
+                <item>
+                 <widget class="QPushButton" name="pushButton_openfusion">
+                  <property name="text"><string>融合SLAM</string></property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_fusion">
+                  <property name="text"><string>●</string></property>
+                  <property name="alignment"><set>Qt::AlignCenter</set></property>
+                  <property name="minimumSize"><size><width>20</width><height>20</height></size></property>
+                  <property name="maximumSize"><size><width>20</width><height>20</height></size></property>
+                  <property name="styleSheet"><string notr="true">QLabel { color: #95a5a6; border-radius: 10px; }</string></property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_lio">
+                <item>
+                 <widget class="QPushButton" name="pushButton_openlio">
+                  <property name="text"><string>激光SLAM</string></property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_lio">
+                  <property name="text"><string>●</string></property>
+                  <property name="alignment"><set>Qt::AlignCenter</set></property>
+                  <property name="minimumSize"><size><width>20</width><height>20</height></size></property>
+                  <property name="maximumSize"><size><width>20</width><height>20</height></size></property>
+                  <property name="styleSheet"><string notr="true">QLabel { color: #95a5a6; border-radius: 10px; }</string></property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_camera">
+                <item>
+                 <widget class="QPushButton" name="pushButton_opencamera">
+                  <property name="text"><string>导航相机</string></property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_camera">
+                  <property name="text"><string>●</string></property>
+                  <property name="alignment"><set>Qt::AlignCenter</set></property>
+                  <property name="minimumSize"><size><width>20</width><height>20</height></size></property>
+                  <property name="maximumSize"><size><width>20</width><height>20</height></size></property>
+                  <property name="styleSheet"><string notr="true">QLabel { color: #95a5a6; border-radius: 10px; }</string></property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_lidar">
+                <item>
+                 <widget class="QPushButton" name="pushButton_openlidar">
+                  <property name="text"><string>激光雷达</string></property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_lidar">
+                  <property name="text"><string>●</string></property>
+                  <property name="alignment"><set>Qt::AlignCenter</set></property>
+                  <property name="minimumSize"><size><width>20</width><height>20</height></size></property>
+                  <property name="maximumSize"><size><width>20</width><height>20</height></size></property>
+                  <property name="styleSheet"><string notr="true">QLabel { color: #95a5a6; border-radius: 10px; }</string></property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_record">
+                <item>
+                 <widget class="QPushButton" name="pushButton_record">
+                  <property name="text"><string>话题录制</string></property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_record">
+                  <property name="text"><string>●</string></property>
+                  <property name="alignment"><set>Qt::AlignCenter</set></property>
+                  <property name="minimumSize"><size><width>20</width><height>20</height></size></property>
+                  <property name="maximumSize"><size><width>20</width><height>20</height></size></property>
+                  <property name="styleSheet"><string notr="true">QLabel { color: #95a5a6; border-radius: 10px; }</string></property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_kill">
+                <property name="text"><string>关闭导航系统</string></property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QGroupBox" name="groupBox_picking_control">
+             <property name="title">
+              <string>采摘系统控制</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_picking_control">
+              <property name="spacing"><number>6</number></property>
+              <item>
+               <widget class="QPushButton" name="pushButton_start_picking">
+                <property name="text"><string>一键启动采摘</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_emergency_stop">
+                <property name="text"><string>一键急停</string></property>
+                <property name="styleSheet"><string notr="true">QPushButton { background-color: #e74c3c; }</string></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="Line" name="line_1">
+                <property name="orientation"><enum>Qt::Horizontal</enum></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="label_arm_control_title">
+                <property name="text"><string>机械臂控制</string></property>
+                <property name="alignment"><set>Qt::AlignCenter</set></property>
+                <property name="font">
+                 <font><pointsize>11</pointsize><weight>75</weight><bold>true</bold></font>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_arm_home">
+                <item>
+                 <widget class="QPushButton" name="pushButton_left_arm_home">
+                  <property name="text"><string>左臂Home</string></property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="pushButton_right_arm_home">
+                  <property name="text"><string>右臂Home</string></property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="Line" name="line_2">
+                <property name="orientation"><enum>Qt::Horizontal</enum></property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="label_arm_status_title">
+                <property name="text"><string>手臂状态</string></property>
+                <property name="alignment"><set>Qt::AlignCenter</set></property>
+                <property name="font">
+                 <font><pointsize>11</pointsize><weight>75</weight><bold>true</bold></font>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <layout class="QFormLayout" name="formLayout_arm_status">
+                <item row="0" column="0">
+                 <widget class="QLabel" name="label_left_arm_status_text">
+                  <property name="text"><string>左臂:</string></property>
+                 </widget>
+                </item>
+                <item row="0" column="1">
+                 <widget class="QLabel" name="label_left_arm_status">
+                  <property name="text"><string>未知</string></property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QLabel" name="label_right_arm_status_text">
+                  <property name="text"><string>右臂:</string></property>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QLabel" name="label_right_arm_status">
+                  <property name="text"><string>未知</string></property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QTextEdit" name="log_text_edit">
+             <property name="readOnly"><bool>true</bool></property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_calib">
+       <attribute name="title">
+        <string>机械臂自动标定</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_calib">
+        <item>
+         <widget class="QLabel" name="label_calib_placeholder">
+          <property name="text">
+           <string>标定功能开发中...</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignCenter</set>
+          </property>
+          <property name="font">
+           <font>
+            <pointsize>16</pointsize>
+           </font>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+    <item>
+     <widget class="QLabel" name="label_background">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>120</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>16777215</width>
+        <height>120</height>
+       </size>
+      </property>
+      <property name="pixmap">
+       <pixmap resource="../resources/icons.qrc">:/icons/apple.png</pixmap>
+      </property>
+      <property name="scaledContents">
+       <bool>true</bool>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources>
+  <include location="../resources/icons.qrc"/>
+ </resources>
+ <connections/>
+</ui>

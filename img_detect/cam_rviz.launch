@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<launch>
+    <!-- 1. 发布TF变换：base_link → zed_left_camera_frame（你的标定参数+实际节点） -->
+    <node 
+        pkg="img_detect" 
+        type="advanced_rviz" 
+        name="cam2base_tf"
+        args="0.3224961 0.1773224 0.37059327 -0.0553167 -0.10934725 0.08760822 0.99013533 base_link zed_left_camera_frame"
+        output="screen" />
+
+    <!-- 2. 启动你的视觉节点（匹配代码中节点名vision_node，功能包img_detect） -->
+    <node 
+        pkg="img_detect" 
+        type="advanced_rviz" 
+        name="advanced_rviz" 
+        output="screen" />
+
+    <!-- 3. 启动RVIZ（最简模式，无自定义配置，直接弹出窗口） -->
+    <node 
+        pkg="rviz" 
+        type="rviz" 
+        name="rviz" 
+        output="screen" />
+</launch>

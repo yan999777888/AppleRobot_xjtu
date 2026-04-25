@@ -1,0 +1,34 @@
+# 编辑器/IDE 自动生成文件
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 依赖目录
+node_modules/
+vendor/
+
+# 编译产物
+dist/
+build/
+out/
+
+# 日志
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# 密钥/证书
+id_rsa
+id_rsa.pub
+*.pem
