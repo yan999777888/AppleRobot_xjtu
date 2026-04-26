@@ -35,19 +35,25 @@ double GRIPPER_OPEN_WAIT  = 0.5;
 double GRIPPER_CLOSE_WAIT = 0.6;
 double MAX_REACH        = 1.5;
 double COLLISION_RADIUS = 0.08;
-double APPROACH_SPEED   = 60.0;
-double TRANSIT_SPEED    = 200.0;
+double APPROACH_SPEED   = 150.0;
+double TRANSIT_SPEED    = 300.0;
 int    NUM_SAMPLES      = 120;
+
+// 手眼标定补偿偏移（基座系下，单位 m）
+// // 用于修正标定矩阵的系统误差，可通过 rosparam 微调
+// double CALIB_OFFSET_X = 0.0;
+// double CALIB_OFFSET_Y = -0.08;   // 左臂偏右 → Y 正方向补偿
+// double CALIB_OFFSET_Z = 0.0;
 
 // 左臂 Home 点姿态参考（采摘示教位 103°,-83°,78°）
 // M_PI/180 = 0.017453
-const double HOME_RX = 1.7453292;   // 103 * π/180
-const double HOME_RY = -0.6614797865;  // -83 * π/180
-const double HOME_RZ = 1.567672187;   // 78  * π/180
+const double HOME_RX = -1.579837;   // 103 * π/180
+const double HOME_RY =  0.929440;  // -83 * π/180
+const double HOME_RZ = -1.43685976;   // 78  * π/180
 
 // 左臂放置点（笛卡尔 {x, y, z, rx, ry, rz}，单位 m/rad）
 // 来源：leftRokaegodemo moveJ_releaseCartpos
-const array<double, 6> DROP_POSE = {0.5682, 0.240223, 0.0336, 1.7453292, -0.6614797865, 1.567672187};
+const array<double, 6> DROP_POSE = {0.368589, 0.212135, 0.148289, -1.579837, 0.929440, -1.43685976};
 
 // =================== 2. 正向运动学（硬编码 DH）===================
 //
@@ -243,6 +249,7 @@ void waitGripper(double timeout_sec) {
 
 // =================== 6. 碰撞检测 ===================
 
+// --- 6a. 苹果架子 AABB ---
 struct RackAABB {
     double xmin = -0.25, xmax = 0.25;
     double ymin = -0.35, ymax = 0.35;
@@ -254,6 +261,27 @@ bool isInRack(const Vector3d& p, double margin) {
             p.y() > g_rack.ymin - margin && p.y() < g_rack.ymax + margin &&
             p.z() > g_rack.zmin - margin && p.z() < g_rack.zmax + margin);
 }
+
+// --- 6b. 连接座碰撞体 ---
+// 连接座建模为竖直圆柱：圆心在 (0, 0)，高度 0~0.885m，半径约 0.15m
+// 左臂安装在 y=+0.15 顶端，运动时连杆不能穿入此圆柱
+struct MountCylinder {
+    double cx     =  0.0;    // 中心 X
+    double cy     =  0.0;    // 中心 Y
+    double radius =  0.15;   // 圆柱半径
+    double zmin   =  0.0;    // 底部
+    double zmax   =  0.885;  // 顶部
+} g_mount;
+
+// 点到竖直圆柱的距离检测
+bool isInMountCylinder(const Vector3d& p, double margin) {
+    if (p.z() < g_mount.zmin - margin || p.z() > g_mount.zmax + margin) return false;
+    double dx = p.x() - g_mount.cx;
+    double dy = p.y() - g_mount.cy;
+    return (dx*dx + dy*dy) < (g_mount.radius + margin) * (g_mount.radius + margin);
+}
+
+// --- 6c. 通用碰撞函数 ---
 
 bool capsuleHitsCloud(const Vector3d& start, const Vector3d& end, double radius,
                       const pcl::PointCloud<pcl::PointXYZ>& cloud) {
@@ -280,8 +308,19 @@ bool capsuleHitsRack(const Vector3d& start, const Vector3d& end, double radius) 
     return false;
 }
 
+// 线段与连接座圆柱的碰撞检测
+bool capsuleHitsMountCylinder(const Vector3d& start, const Vector3d& end, double radius) {
+    int steps = max(1, (int)ceil((end - start).norm() / 0.03));
+    for (int i = 0; i <= steps; ++i) {
+        double t = (double)i / steps;
+        if (isInMountCylinder(start + t * (end - start), radius)) return true;
+    }
+    return false;
+}
+
 bool checkCollision(const Vector3d& start, const Vector3d& end, double radius) {
     if (capsuleHitsRack(start, end, radius)) return true;
+    if (capsuleHitsMountCylinder(start, end, radius)) return true;
     lock_guard<mutex> lk(obstacle_mutex);
     if (!g_has_obs || g_obstacle_cloud->empty()) return false;
     return capsuleHitsCloud(start, end, radius, *g_obstacle_cloud);
@@ -319,6 +358,10 @@ void linkCollisionMonitorThread() {
 
             if (capsuleHitsRack(A, B, r)) {
                 ROS_WARN_THROTTLE(1.0, "左臂连杆 %d 碰到架子！", seg + 1);
+                hit = true;
+            }
+            if (!hit && capsuleHitsMountCylinder(A, B, r)) {
+                ROS_WARN_THROTTLE(1.0, "左臂连杆 %d 碰到连接座！", seg + 1);
                 hit = true;
             }
             if (!hit && seg >= 4) {
@@ -396,7 +439,11 @@ bool pickCallBack(task_assign::Target::Request& req, task_assign::Target::Respon
 
     Vector4d p_cam(req.x, req.y, req.z * depth_scale, 1.0);
     Vector3d target = (T_cam_to_base * p_cam).head<3>();
-    ROS_INFO("左臂 >>> 目标 (基座系): [%.3f, %.3f, %.3f]", target.x(), target.y(), target.z());
+    // target.x() += CALIB_OFFSET_X;
+    // target.y() += CALIB_OFFSET_Y;
+
+    // target.z() += CALIB_OFFSET_Z;
+    ROS_INFO("左臂 >>> 目标 (基座系+补偿): [%.3f, %.3f, %.3f]", target.x(), target.y(), target.z());
 
     if (target.norm() > MAX_REACH) {
         ROS_ERROR("左臂目标过远 (%.3fm)", target.norm());
@@ -520,6 +567,10 @@ int main(int argc, char* argv[]) {
     nh.param("transit_speed",      TRANSIT_SPEED,      200.0);
     nh.param("num_samples",        NUM_SAMPLES,        120);
 
+    // nh.param("calib_offset_x",     CALIB_OFFSET_X,     0.0);
+    // nh.param("calib_offset_y",     CALIB_OFFSET_Y,     -0.08);
+    // nh.param("calib_offset_z",     CALIB_OFFSET_Z,     0.0);
+
     nh.param("rack_xmin", g_rack.xmin, -0.25);
     nh.param("rack_xmax", g_rack.xmax,  0.25);
     nh.param("rack_ymin", g_rack.ymin, -0.35);
@@ -561,7 +612,7 @@ int main(int argc, char* argv[]) {
         robot_ptr->setDefaultSpeed(100, ec);
 
         Toolset tool;
-        tool.end = {{0, 0, 0.25}, {0, 0, 0}};
+        tool.end = {{0, 0, 0.35}, {0, 0, 0}};
         tool.load.mass = 0.708993;
         robot_ptr->setToolset(tool, ec);
 

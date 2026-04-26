@@ -57,7 +57,7 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
     render_panel_->initialize(manager_->getSceneManager(), manager_);
     manager_->initialize();
     manager_->setFixedFrame("map");
-
+    //rviz的节点订阅
     rviz::Display* grid = manager_->createDisplay("rviz/Grid", "Grid", true);
     grid->subProp("Color")->setValue(QColor(180, 180, 180));
     Q_UNUSED(manager_->createDisplay("rviz/TF", "TF", true))
@@ -82,6 +82,7 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
     connect(ros_node_, &RosNode::signal_detection_image,      this, &MainWindow::updateDetectionImage);
     connect(ros_node_, &RosNode::signal_calibration_image,    this, &MainWindow::updateCalibrationImage);
     connect(ros_node_, &RosNode::signal_calib_camera_image,  this, &MainWindow::updateCalibCameraImage);
+    connect(ros_node_, &RosNode::signal_calib_camera_image,  this, &MainWindow::updateDetectionImage);
     connect(ros_node_, &RosNode::signal_calibration_status,  this, [this](const QString& msg){
         ui_->log_text_edit->append("[标定] " + msg);
         if (calib_status_label_) {
@@ -505,7 +506,7 @@ void MainWindow::startCalibrationProcess(const QString& mode,
     }
 
     QProcess::startDetached("bash", QStringList() << "-lc"
-                            << wrapRosCommand("pkill -f robot_control_node; pkill -f leftRokae; pkill -f rightRokae; pkill -f task_assign"));
+                            << wrapRosCommand("pkill -f robot_control_node; pkill -f left_robot_control_node; pkill -f target_assign"));
 
     const QString cmd = QString(
         "rosrun rokae auto_handeye_calibration "
@@ -626,7 +627,12 @@ void MainWindow::on_pushButton_start_picking_clicked() {
         ui_->log_text_edit->append("[系统] 采摘系统已停止");
     } else {
         proc_picking_system->start("bash", QStringList() << "-lc"
-                                   << wrapRosCommand("roslaunch img_detect start_picking_system.launch"));
+                                   << wrapRosCommand(
+                                       "rosrun rokae robot_control_node &\n"
+                                       "rosrun rokae left_robot_control_node &\n"
+                                       "rosrun task_assign target_assign &\n"
+                                       "rosrun img_detect advance_vision_node &\n"
+                                       "wait"));
         ui_->pushButton_start_picking->setText("停止采摘系统");
         ui_->log_text_edit->append("[系统] 采摘系统已启动");
     }
@@ -637,7 +643,7 @@ void MainWindow::on_pushButton_emergency_stop_clicked() {
         proc_picking_system->terminate();
         if (!proc_picking_system->waitForFinished(2000)) proc_picking_system->kill();
     }
-    QProcess::startDetached("bash", QStringList() << "-c" << "pkill -f img_detect; pkill -f task_assign; pkill -f rokae");
+    QProcess::startDetached("bash", QStringList() << "-c" << "pkill -f advance_vision_node; pkill -f target_assign; pkill -f robot_control_node; pkill -f left_robot_control_node");
     ui_->pushButton_start_picking->setText("一键启动采摘系统");
     ui_->log_text_edit->append("[系统] 采摘系统已急停");
 }

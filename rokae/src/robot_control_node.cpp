@@ -274,6 +274,7 @@ void waitGripper(double timeout_sec) {
 
 // =================== 6. 碰撞检测 ===================
 
+// --- 6a. 苹果架子 AABB ---
 struct RackAABB {
     double xmin = -0.25, xmax = 0.25;
     double ymin = -0.35, ymax = 0.35;
@@ -285,6 +286,25 @@ bool isInRack(const Vector3d& p, double margin) {
             p.y() > g_rack.ymin - margin && p.y() < g_rack.ymax + margin &&
             p.z() > g_rack.zmin - margin && p.z() < g_rack.zmax + margin);
 }
+
+// --- 6b. 连接座碰撞体 ---
+// 竖直圆柱：圆心 (0,0)，高度 0~0.885m，半径 0.15m
+struct MountCylinder {
+    double cx     =  0.0;
+    double cy     =  0.0;
+    double radius =  0.15;
+    double zmin   =  0.0;
+    double zmax   =  0.885;
+} g_mount;
+
+bool isInMountCylinder(const Vector3d& p, double margin) {
+    if (p.z() < g_mount.zmin - margin || p.z() > g_mount.zmax + margin) return false;
+    double dx = p.x() - g_mount.cx;
+    double dy = p.y() - g_mount.cy;
+    return (dx*dx + dy*dy) < (g_mount.radius + margin) * (g_mount.radius + margin);
+}
+
+// --- 6c. 通用碰撞函数 ---
 
 // 胶囊体碰撞：线段 [start,end] 与点云，超过3点即碰撞
 bool capsuleHitsCloud(const Vector3d& start, const Vector3d& end, double radius,
@@ -314,6 +334,16 @@ bool capsuleHitsRack(const Vector3d& start, const Vector3d& end, double radius) 
     return false;
 }
 
+// 线段与连接座圆柱的碰撞检测
+bool capsuleHitsMountCylinder(const Vector3d& start, const Vector3d& end, double radius) {
+    int steps = max(1, (int)ceil((end - start).norm() / 0.03));
+    for (int i = 0; i <= steps; ++i) {
+        double t = (double)i / steps;
+        if (isInMountCylinder(start + t * (end - start), radius)) return true;
+    }
+    return false;
+}
+
 bool checkDynamicCollision(const Vector3d& start, const Vector3d& end, double radius) {
     lock_guard<mutex> lk(obstacle_mutex);
     if (!g_has_obs || g_obstacle_cloud->empty()) return false;
@@ -324,6 +354,10 @@ bool checkDynamicCollision(const Vector3d& start, const Vector3d& end, double ra
 bool checkCollision(const Vector3d& start, const Vector3d& end, double radius) {
     if (capsuleHitsRack(start, end, radius)) {
         ROS_DEBUG("碰撞检测：命中架子");
+        return true;
+    }
+    if (capsuleHitsMountCylinder(start, end, radius)) {
+        ROS_DEBUG("碰撞检测：命中连接座");
         return true;
     }
     return checkDynamicCollision(start, end, radius);
@@ -371,6 +405,12 @@ void linkCollisionMonitorThread() {
             // 对 AABB 架子检测（连杆穿进架子里很危险）
             if (capsuleHitsRack(A, B, r)) {
                 ROS_WARN_THROTTLE(1.0, "连杆 %d 碰到架子！", seg + 1);
+                hit = true;
+            }
+
+            // 对连接座圆柱检测
+            if (!hit && capsuleHitsMountCylinder(A, B, r)) {
+                ROS_WARN_THROTTLE(1.0, "连杆 %d 碰到连接座！", seg + 1);
                 hit = true;
             }
 

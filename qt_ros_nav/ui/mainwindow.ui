@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1600</width>
-    <height>950</height>
+    <width>1440</width>
+    <height>900</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>苹果采摘机器人果园导航控制系统</string>
   </property>
-  <property name="styleSheet">
+<property name="styleSheet">
    <string notr="true">QMainWindow{
 	background-color:#f5f7fa;
     font-size:16px;
@@ -61,6 +61,20 @@ QLabel{
 #label_pick{
 	font-size:20px;
 	color:#7f8c8d;
+}
+QGroupBox {
+    background-color: #ffffff;
+    border: 1px solid #dcdde1;
+    border-radius: 6px;
+    margin-top: 10px;  /* 减小外边距 */
+    padding-top: 2px;  /* 极大地压缩标题和内容部分的巨大空白！ */
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 10px;
+    top: 0px;
+    color: #2c3e50;
+    font-weight: bold;
 }
 </string>
   </property>
@@ -200,23 +214,32 @@ QLabel{
            <property name="rightMargin"><number>0</number></property>
            <property name="bottomMargin"><number>0</number></property>
            <item>
-            <widget class="QWidget" name="rviz_container">
+
+<widget class="QWidget" name="rviz_container">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                <horstretch>0</horstretch>
-               <verstretch>2</verstretch>
-              </sizepolicy>
+               <verstretch>1</verstretch> </sizepolicy>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>200</height> </size>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">background-color: #333333; border-radius: 6px;</string>
              </property>
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="groupBox_nav_control">
+<widget class="QGroupBox" name="groupBox_nav_control">
              <property name="title">
               <string>导航系统控制</string>
              </property>
-             <layout class="QVBoxLayout" name="verticalLayout_nav_control">
+             <layout class="QGridLayout" name="gridLayout_nav_control">
               <property name="spacing"><number>6</number></property>
-              <item>
+              
+              <item row="0" column="0">
                <layout class="QHBoxLayout" name="horizontalLayout_fusion">
                 <item>
                  <widget class="QPushButton" name="pushButton_openfusion">
@@ -234,7 +257,7 @@ QLabel{
                 </item>
                </layout>
               </item>
-              <item>
+              <item row="0" column="1">
                <layout class="QHBoxLayout" name="horizontalLayout_lio">
                 <item>
                  <widget class="QPushButton" name="pushButton_openlio">
@@ -252,7 +275,8 @@ QLabel{
                 </item>
                </layout>
               </item>
-              <item>
+
+              <item row="1" column="0">
                <layout class="QHBoxLayout" name="horizontalLayout_camera">
                 <item>
                  <widget class="QPushButton" name="pushButton_opencamera">
@@ -270,7 +294,7 @@ QLabel{
                 </item>
                </layout>
               </item>
-              <item>
+              <item row="1" column="1">
                <layout class="QHBoxLayout" name="horizontalLayout_lidar">
                 <item>
                  <widget class="QPushButton" name="pushButton_openlidar">
@@ -288,7 +312,8 @@ QLabel{
                 </item>
                </layout>
               </item>
-              <item>
+
+              <item row="2" column="0">
                <layout class="QHBoxLayout" name="horizontalLayout_record">
                 <item>
                  <widget class="QPushButton" name="pushButton_record">
@@ -306,46 +331,54 @@ QLabel{
                 </item>
                </layout>
               </item>
-              <item>
+              <item row="2" column="1">
                <widget class="QPushButton" name="pushButton_kill">
                 <property name="text"><string>关闭导航系统</string></property>
                </widget>
               </item>
+              
              </layout>
             </widget>
            </item>
            <item>
-            <widget class="QGroupBox" name="groupBox_picking_control">
+<widget class="QGroupBox" name="groupBox_picking_control">
              <property name="title">
               <string>采摘系统控制</string>
              </property>
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>180</height> </size>
+             </property>
              <layout class="QVBoxLayout" name="verticalLayout_picking_control">
-              <property name="spacing"><number>6</number></property>
+              <property name="spacing"><number>8</number></property>
+              <property name="leftMargin"><number>10</number></property>
+              <property name="topMargin"><number>10</number></property>
+              <property name="rightMargin"><number>10</number></property>
+              <property name="bottomMargin"><number>10</number></property>
+              
               <item>
-               <widget class="QPushButton" name="pushButton_start_picking">
-                <property name="text"><string>一键启动采摘</string></property>
-               </widget>
+               <layout class="QHBoxLayout" name="horizontalLayout_start_stop">
+                <item>
+                 <widget class="QPushButton" name="pushButton_start_picking">
+                  <property name="text"><string>一键启动采摘</string></property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="pushButton_emergency_stop">
+                  <property name="text"><string>一键急停</string></property>
+                  <property name="styleSheet"><string notr="true">QPushButton { background-color: #e74c3c; }</string></property>
+                 </widget>
+                </item>
+               </layout>
               </item>
-              <item>
-               <widget class="QPushButton" name="pushButton_emergency_stop">
-                <property name="text"><string>一键急停</string></property>
-                <property name="styleSheet"><string notr="true">QPushButton { background-color: #e74c3c; }</string></property>
-               </widget>
-              </item>
+              
               <item>
                <widget class="Line" name="line_1">
                 <property name="orientation"><enum>Qt::Horizontal</enum></property>
                </widget>
               </item>
-              <item>
-               <widget class="QLabel" name="label_arm_control_title">
-                <property name="text"><string>机械臂控制</string></property>
-                <property name="alignment"><set>Qt::AlignCenter</set></property>
-                <property name="font">
-                 <font><pointsize>11</pointsize><weight>75</weight><bold>true</bold></font>
-                </property>
-               </widget>
-              </item>
+              
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_arm_home">
                 <item>
@@ -360,50 +393,50 @@ QLabel{
                 </item>
                </layout>
               </item>
+
               <item>
                <widget class="Line" name="line_2">
                 <property name="orientation"><enum>Qt::Horizontal</enum></property>
                </widget>
               </item>
+
               <item>
-               <widget class="QLabel" name="label_arm_status_title">
-                <property name="text"><string>手臂状态</string></property>
-                <property name="alignment"><set>Qt::AlignCenter</set></property>
-                <property name="font">
-                 <font><pointsize>11</pointsize><weight>75</weight><bold>true</bold></font>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <layout class="QFormLayout" name="formLayout_arm_status">
-                <item row="0" column="0">
+               <layout class="QHBoxLayout" name="horizontalLayout_arm_status">
+                <item>
                  <widget class="QLabel" name="label_left_arm_status_text">
-                  <property name="text"><string>左臂:</string></property>
+                  <property name="text"><string>左臂状态:</string></property>
+                  <property name="font"><font><weight>75</weight><bold>true</bold></font></property>
                  </widget>
                 </item>
-                <item row="0" column="1">
+                <item>
                  <widget class="QLabel" name="label_left_arm_status">
                   <property name="text"><string>未知</string></property>
                  </widget>
                 </item>
-                <item row="1" column="0">
+                <item>
                  <widget class="QLabel" name="label_right_arm_status_text">
-                  <property name="text"><string>右臂:</string></property>
+                  <property name="text"><string>右臂状态:</string></property>
+                  <property name="font"><font><weight>75</weight><bold>true</bold></font></property>
                  </widget>
                 </item>
-                <item row="1" column="1">
+                <item>
                  <widget class="QLabel" name="label_right_arm_status">
                   <property name="text"><string>未知</string></property>
                  </widget>
                 </item>
                </layout>
               </item>
+
              </layout>
             </widget>
            </item>
            <item>
             <widget class="QTextEdit" name="log_text_edit">
-             <property name="readOnly"><bool>true</bool></property>
+             <property name="readOnly">
+              <bool>true</bool>
+             </property>
+             <property name="maximumHeight">
+              <number>100</number> </property>
             </widget>
            </item>
           </layout>
