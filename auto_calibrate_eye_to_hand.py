@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+windows下的sr4自动标定眼在手外标定代码
 SR4 + ZED 2 Eye-to-Hand
 
     camera fixed in workspace, checkerboard on end-effector

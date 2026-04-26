@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+windows下的sr4自动标定眼在手上标定代码
 SR4 + RealSense D405 Eye-in-Hand
 
     camera on end-effector, checkerboard fixed in workspace
