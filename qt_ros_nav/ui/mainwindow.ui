@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>苹果采摘机器人果园导航控制系统</string>
+   <string>苹果采摘机器人控制系统</string>
   </property>
 <property name="styleSheet">
    <string notr="true">QMainWindow{

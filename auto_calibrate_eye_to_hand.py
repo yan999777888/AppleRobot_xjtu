@@ -15,7 +15,7 @@ SR4 + ZED 2 Eye-to-Hand
 
 import sys
 import os
-
+00
 curPath = os.path.abspath(os.path.dirname(__file__))
 rootPath = os.path.split(curPath)[0] + '/lib'
 sys.path.append(rootPath)

@@ -17,6 +17,8 @@
 #include <rviz/render_panel.h>
 #include <rviz/display.h>
 #include <rviz/display_group.h>
+#include <rviz/tool_manager.h>
+#include <rviz/tool.h>
 
 static const QString kStyleRunning = "QLabel { background-color:#27ae60; color:white; border-radius:4px; }";
 static const QString kStyleStopped = "QLabel { background-color:#95a5a6; color:white; border-radius:4px; }";
@@ -42,10 +44,8 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
 {
     ui_->setupUi(this);
 
-    // ── RViz 嵌入 ──────────────────────────────────────────────
+   // ── RViz 嵌入 (基于你的定制 YAML 配置) ─────────────────────────
     render_panel_ = new rviz::RenderPanel();
-    // 在加入布局前强制给定非零尺寸；OGRE 在 initialize() 时需要有效的
-    // viewport 才能计算包围盒，零尺寸会触发 AxisAlignedBox 断言崩溃。
     render_panel_->setMinimumSize(1, 1);
     render_panel_->resize(800, 600);
 
@@ -55,22 +55,56 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
 
     manager_ = new rviz::VisualizationManager(render_panel_);
     render_panel_->initialize(manager_->getSceneManager(), manager_);
-    manager_->initialize();
-    manager_->setFixedFrame("map");
-    //rviz的节点订阅
-    rviz::Display* grid = manager_->createDisplay("rviz/Grid", "Grid", true);
-    grid->subProp("Color")->setValue(QColor(180, 180, 180));
-    Q_UNUSED(manager_->createDisplay("rviz/TF", "TF", true))
-    rviz::Display* robot_model = manager_->createDisplay("rviz/RobotModel", "Robot", true);
-    robot_model->subProp("Robot Description")->setValue("robot_description");
-    rviz::Display* map_display = manager_->createDisplay("rviz/Map", "Map", false);
-    map_display->subProp("Topic")->setValue("/map");
-    rviz::Display* point_cloud = manager_->createDisplay("rviz/PointCloud2", "LiDAR", false);
-    point_cloud->subProp("Topic")->setValue("/livox/lidar");
-    point_cloud->subProp("Style")->setValue("Flat Squares");
-    point_cloud->subProp("Color Transformer")->setValue("AxisColor");
+
+   manager_->initialize();
+    
+    // 1. 全局坐标系
+    // 【关键修改】：为了兼容单开雷达的情况，必须把基础坐标系设为雷达硬件的坐标系
+    manager_->setFixedFrame("livox_frame"); 
+
+    // 2. Axes (坐标系原点显示)
+    rviz::Display* axes = manager_->createDisplay("rviz/Axes", "Axes", true);
+    axes->subProp("Length")->setValue(0.7);
+    axes->subProp("Radius")->setValue(0.1);
+
+    // 3. 【新增】：原始雷达点云 (只点“启动雷达”时显示这个)
+    rviz::Display* raw_cloud = manager_->createDisplay("rviz/PointCloud2", "Raw LiDAR", true);
+    raw_cloud->subProp("Topic")->setValue("/livox/lidar");
+    raw_cloud->subProp("Style")->setValue("Points");
+    raw_cloud->subProp("Size (Pixels)")->setValue("2");
+    raw_cloud->subProp("Color Transformer")->setValue("FlatColor");
+    raw_cloud->subProp("Color")->setValue(QColor(0, 255, 0)); // 用纯绿色显示雷达原始数据
+
+    // 4. 核心建图点云 (点了“启动SLAM”后，会叠加显示这个)
+    rviz::Display* pc_surround = manager_->createDisplay("rviz/PointCloud2", "surround", true);
+    pc_surround->subProp("Topic")->setValue("/cloud_registered");
+    pc_surround->subProp("Style")->setValue("Points");
+    pc_surround->subProp("Size (Pixels)")->setValue("1");
+    pc_surround->subProp("Decay Time")->setValue("10000"); // 建图残影
+    pc_surround->subProp("Color Transformer")->setValue("RGB8"); // 彩色显示
+
+    // 5. 里程计 (Odometry)
+    rviz::Display* odom = manager_->createDisplay("rviz/Odometry", "Odometry", true);
+    odom->subProp("Topic")->setValue("/aft_mapped_to_init");
+    odom->subProp("Shape")->subProp("Value")->setValue("Axes");
+    odom->subProp("Position Tolerance")->setValue("0.001");
+    odom->subProp("Angle Tolerance")->setValue("0.01");
+
+    // 6. 运动轨迹 (Path)
+    rviz::Display* path = manager_->createDisplay("rviz/Path", "Path", true);
+    path->subProp("Topic")->setValue("/path");
+    path->subProp("Color")->setValue(QColor(25, 255, 255));
+    path->subProp("Line Style")->setValue("Billboards");
+    path->subProp("Line Width")->setValue("0.2");
+
     manager_->startUpdate();
-    // ────────────────────────────────────────────────────────────
+
+    // ── 配置建图专属鼠标交互工具 ────────────────────────────────
+    rviz::ToolManager* tool_manager = manager_->getToolManager();
+    tool_manager->initialize();
+    rviz::Tool* move_camera_tool = tool_manager->addTool("rviz/Interact");
+    tool_manager->setCurrentTool(move_camera_tool);
+
 
     // ── ROS 节点 ─────────────────────────────────────────────────
     if (!ros_node_->init())
@@ -106,19 +140,26 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
     proc_calib          = new QProcess(this);
     proc_calib_cam_     = new QProcess(this);
 
-    auto connectLog = [this](QProcess* p) {
+    // 替换掉原来的 connectLog，增加对退出状态（finished）的全面监控
+    auto connectProcessState = [this](QProcess* p, QPushButton* btn, QLabel* lbl, const QString& name) {
         connect(p, &QProcess::readyReadStandardOutput, this, [this, p]{ appendLog(p); });
         connect(p, &QProcess::readyReadStandardError,  this, [this, p]{ appendLog(p); });
+        
+        // 关键所在：一旦进程死亡，立刻把按钮变回蓝色，并打印警告
+        connect(p, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, btn, lbl, name](int exitCode, QProcess::ExitStatus) {
+            setModuleState(btn, lbl, false);
+            ui_->log_text_edit->append(QString("!!! [导航警告] %1 已停止运行 (代码: %2)").arg(name).arg(exitCode));
+        });
     };
-    connectLog(proc_lio);
-    connectLog(proc_fusion);
-    connectLog(proc_camera);
-    connectLog(proc_lidar);
-    connectLog(proc_record);
-    connectLog(proc_picking_system);
-    connectLog(proc_calib);
-    connectLog(proc_calib_cam_);
 
+    // 重新绑定导航相关的 5 个进程
+    connectProcessState(proc_lio, ui_->pushButton_openlio, ui_->label_lio, "激光SLAM");
+    connectProcessState(proc_fusion, ui_->pushButton_openfusion, ui_->label_fusion, "融合SLAM");
+    connectProcessState(proc_camera, ui_->pushButton_opencamera, ui_->label_camera, "导航相机");
+    connectProcessState(proc_lidar, ui_->pushButton_openlidar, ui_->label_lidar, "激光雷达");
+    connectProcessState(proc_record, ui_->pushButton_record, ui_->label_record, "话题录制");
+    
     // proc_picking_system 退出时恢复按钮文字
     connect(proc_picking_system,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
@@ -575,7 +616,7 @@ void MainWindow::on_pushButton_record_clicked() {
         setModuleState(ui_->pushButton_record, ui_->label_record, false);
         ui_->log_text_edit->append("[系统] 话题录制已停止");
     } else {
-        QString savePath = "/home/ubuntu/bag_record";
+        QString savePath = "/home/y/bag_record";
         QString ts  = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
         QString cmd = QString(
             "mkdir -p %1 && rosbag record -O %1/%2.bag "
