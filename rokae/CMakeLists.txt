@@ -253,7 +253,7 @@ add_executable(leftRokaegoHome src/leftRokaegoHome.cpp ${HEADERS})
 add_executable(leftRokaegodemo src/leftRokaegodemo.cpp ${HEADERS})
 add_executable(rightRokae src/rightRokae.cpp ${HEADERS})
 add_executable(smart_robot_node src/smart_robot_node.cpp ${HEADERS})
-add_executable(robot_control_node src/robot_control_node.cpp ${HEADERS})
+add_executable(right_robot_control_node src/right_robot_control_node.cpp ${HEADERS})
 add_executable(left_robot_control_node src/left_robot_control_node.cpp ${HEADERS})
 add_executable(auto_handeye_calibration src/auto_handeye_calibration.cpp ${HEADERS})
 ## Rename C++ executable without prefix
@@ -270,7 +270,7 @@ add_dependencies(leftRokaegoHome ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EX
 add_dependencies(leftRokaegodemo ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(rightRokae ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(smart_robot_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-add_dependencies(robot_control_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(right_robot_control_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(left_robot_control_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 add_dependencies(auto_handeye_calibration ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 ## Specify libraries to link a library or executable target against
@@ -315,7 +315,7 @@ target_link_libraries(smart_robot_node
 )
 
 
-target_link_libraries(robot_control_node
+target_link_libraries(right_robot_control_node
   ${catkin_LIBRARIES}
   Rokae::Rokae
   Threads::Threads

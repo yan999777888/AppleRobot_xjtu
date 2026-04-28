@@ -33,6 +33,7 @@ public:
   void publishLeftArmHomeCommand();
   void publishRightArmHomeCommand();
   void publishCalibrationDecision(int decision);
+  void publishBasePickEnabled(bool enabled);
 
 protected:
   void run() override;
@@ -91,6 +92,7 @@ private:
   ros::Publisher left_arm_home_pub_;
   ros::Publisher right_arm_home_pub_;
   ros::Publisher calibration_decision_pub_;
+  ros::Publisher base_pick_enabled_pub_;
   ros::Subscriber left_arm_status_sub_;
   ros::Subscriber right_arm_status_sub_;
   bool is_mapping_;

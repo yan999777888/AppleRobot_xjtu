@@ -144,10 +144,7 @@ int main(int argc, char *argv[]) {
     init_params.coordinate_units = sl::UNIT::METER;
     zed.open(init_params);
 
-    // 每个检测框独立防抖缓冲（按检测框索引存，简化为全局最近帧列表）
-    // 使用 map<int, deque> 按苹果 id 防抖过于复杂，此处改为：
-    // 每帧把所有稳定苹果打包发布，防抖由 task_assign 侧的策略决定
-    bool auto_mode = false;
+    ros::Rate loop_rate(30);
 
     while (nh.ok()) {
         if (zed.grab() == ERROR_CODE::SUCCESS) {
@@ -159,52 +156,43 @@ int main(int argc, char *argv[]) {
             cv::Mat rgb; cv::cvtColor(frame, rgb, cv::COLOR_BGRA2BGR);
 
             vector<OutputSeg> results;
+            const bool detected = yolo.OnnxDetect(rgb, results);
 
-            if (yolo.OnnxDetect(rgb, results) && auto_mode) {
-                img_detect::Apple apple_msg;
-                apple_msg.header.stamp = ros::Time::now();
+            img_detect::Apple apple_msg;
+            apple_msg.header.stamp = ros::Time::now();
 
+            if (detected) {
                 for (uint32_t i = 0; i < results.size(); i++) {
                     auto& res = results[i];
                     Point3D center = processPointCloud(zed_cloud, res.box);
 
-                    // 过滤无效点
-                    if (center.z <= 0 || center.z > 2.0) continue;
+                    if (center.z > 0 && center.z <= 2.0) {
+                        apple_msg.id.push_back(i);
+                        apple_msg.x.push_back(center.x);
+                        apple_msg.y.push_back(center.y);
+                        apple_msg.z.push_back(center.z);
+                        apple_msg.size.push_back(
+                            (res.box.width + res.box.height) * 0.5f / rgb.cols);
 
-                    apple_msg.id.push_back(i);
-                    apple_msg.x.push_back(center.x);
-                    apple_msg.y.push_back(center.y);
-                    apple_msg.z.push_back(center.z);
-                    apple_msg.size.push_back(
-                        (res.box.width + res.box.height) * 0.5f / rgb.cols);
-
-                    cv::rectangle(rgb, res.box, cv::Scalar(0,255,0), 2);
-                    cv::putText(rgb,
-                        "x:" + to_string(center.x).substr(0,5),
-                        {res.box.x, res.box.y - 5}, 1, 1.2, {0,255,255}, 1);
+                        cv::rectangle(rgb, res.box, cv::Scalar(0,255,0), 2);
+                        cv::putText(rgb,
+                            "x:" + to_string(center.x).substr(0,5),
+                            {res.box.x, res.box.y - 5}, 1, 1.2, {0,255,255}, 1);
+                    } else {
+                        cv::rectangle(rgb, res.box, cv::Scalar(0,200,0), 2);
+                    }
                 }
-
-                if (!apple_msg.id.empty()) {
-                    pub_apples.publish(apple_msg);
-                    ROS_INFO_THROTTLE(1.0, "发布 %ld 个苹果", apple_msg.id.size());
-                }
-            } else if (yolo.OnnxDetect(rgb, results)) {
-                // MANUAL 模式只画框不发布
-                for (auto& res : results)
-                    cv::rectangle(rgb, res.box, cv::Scalar(0,200,0), 2);
             }
 
-            cv::putText(rgb, auto_mode ? "AUTO" : "MANUAL", {20,40}, 1, 2, {0,255,0}, 2);
+            pub_apples.publish(apple_msg);
+            ROS_INFO_THROTTLE(1.0, "发布苹果消息: %ld 个", apple_msg.id.size());
+
+            cv::putText(rgb, "VISION", {20,40}, 1, 2, {0,255,0}, 2);
             sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", rgb).toImageMsg();
             pub_debug_img.publish(msg);
-
-            cv::imshow("ZED View", rgb);
-
-            char key = cv::waitKey(10);
-            if(key=='a') auto_mode = !auto_mode;
-            if(key=='q') break;
         }
         ros::spinOnce();
+        loop_rate.sleep();
     }
     zed.close();
     return 0;

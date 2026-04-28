@@ -44,6 +44,7 @@ bool RosNode::init() {
   left_arm_home_pub_  = nh_->advertise<std_msgs::Bool>("/ap_robot/left_arm/home",  1);
   right_arm_home_pub_ = nh_->advertise<std_msgs::Bool>("/ap_robot/right_arm/home", 1);
   calibration_decision_pub_ = nh_->advertise<std_msgs::Int32>("/handeye/decision", 1);
+  base_pick_enabled_pub_ = nh_->advertise<std_msgs::Bool>("/ap_robot/base_pick_enabled", 1, true);
 
   map_saver_client_  = nh_->serviceClient<std_srvs::Empty>("/map_saver");
   map_loader_client_ = nh_->serviceClient<std_srvs::Empty>("/map_loader");
@@ -122,6 +123,12 @@ void RosNode::publishCalibrationDecision(int decision) {
   std_msgs::Int32 msg;
   msg.data = decision;
   calibration_decision_pub_.publish(msg);
+}
+
+void RosNode::publishBasePickEnabled(bool enabled) {
+  std_msgs::Bool msg;
+  msg.data = enabled;
+  base_pick_enabled_pub_.publish(msg);
 }
 
 void RosNode::laserCallback(const sensor_msgs::LaserScan::ConstPtr& /*msg*/) {}

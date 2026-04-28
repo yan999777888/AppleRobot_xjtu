@@ -61,9 +61,11 @@ private:
                                const QString& cameraInfoTopic);
   bool isCalibrationCameraReady() const;
   void setCalibrationRunning(bool running, const QString& message = QString());
+  void updateBasePickLockUi();
 
   Ui::MainWindow* ui_;
   RosNode* ros_node_;
+  bool ros_ready_ {false};
   bool is_moving_;
 
   QProcess* proc_lio;
@@ -84,6 +86,7 @@ private:
   QPushButton* calib_reject_button_ {nullptr};
   QPushButton* calib_abort_button_ {nullptr};
   QPushButton* calib_start_cam_button_ {nullptr};
+  QPushButton* base_pick_lock_button_ {nullptr};
   QLabel* calib_status_label_ {nullptr};
   QLabel* calib_preview_label_ {nullptr};
   QLabel* calib_hint_label_ {nullptr};
@@ -93,6 +96,9 @@ private:
   bool calib_running_ {false};
   bool calib_preview_ready_ {false};
   bool calib_waiting_camera_ready_ {false};
+  bool base_pick_enabled_ {false};
+  bool picking_system_running_ {false};
+  QString gripper_serial_port_ {"/dev/ttyUSB0"};
   QString calib_pending_mode_;
   QString calib_pending_robot_ip_;
   QString calib_pending_arm_name_;

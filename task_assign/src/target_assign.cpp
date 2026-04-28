@@ -1,6 +1,7 @@
 #include "ros/ros.h"
 #include "task_assign/Target.h"
 #include "img_detect/Apple.h"
+#include "std_msgs/Bool.h"
 #include <mutex>
 #include <atomic>
 #include <thread>
@@ -19,6 +20,9 @@ struct AppleInfo {
 mutex         g_apple_mutex;
 vector<AppleInfo> g_pending;      // 待处理的苹果列表
 bool          g_new_data = false; // 是否有新消息
+
+// 底盘抓取允许状态：true = 允许抓取，false = 移动锁定
+atomic<bool>  g_base_pick_enabled(false);
 
 // 各臂是否正在采摘（防止重复派遣）
 atomic<bool>  g_left_busy(false);
@@ -46,6 +50,19 @@ void appleCallback(const img_detect::Apple::ConstPtr& msg) {
     lock_guard<mutex> lk(g_apple_mutex);
     g_pending  = apples;
     g_new_data = true;
+}
+
+void basePickEnableCallback(const std_msgs::Bool::ConstPtr& msg) {
+    g_base_pick_enabled.store(msg->data);
+    ROS_INFO("底盘抓取允许状态: %s", msg->data ? "允许" : "禁止");
+}
+
+bool baseReadyForPick() {
+    if (!g_base_pick_enabled.load()) {
+        ROS_WARN_THROTTLE(1.0, "底盘移动锁定中，暂停派单抓取");
+        return false;
+    }
+    return true;
 }
 
 // =================== 采摘线程函数 ===================
@@ -104,11 +121,17 @@ int main(int argc, char* argv[]) {
     ROS_INFO("双臂服务就绪，开始任务分配");
 
     ros::Subscriber sub = nh.subscribe("ap_robot/chatter_appleInfo", 1, appleCallback);
+    ros::Subscriber sub_base_pick = nh.subscribe("/ap_robot/base_pick_enabled", 1, basePickEnableCallback);
 
     ros::Rate rate(10); // 10Hz 轮询
 
     while (ros::ok()) {
         ros::spinOnce();
+
+        if (!baseReadyForPick()) {
+            rate.sleep();
+            continue;
+        }
 
         // 取出最新数据
         vector<AppleInfo> apples;

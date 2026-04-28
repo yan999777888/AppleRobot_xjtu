@@ -13,6 +13,7 @@
 #include <QButtonGroup>
 #include <QRadioButton>
 #include <QGroupBox>
+#include <string>
 
 #include <rviz/render_panel.h>
 #include <rviz/display.h>
@@ -86,7 +87,7 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
     // 5. 里程计 (Odometry)
     rviz::Display* odom = manager_->createDisplay("rviz/Odometry", "Odometry", true);
     odom->subProp("Topic")->setValue("/aft_mapped_to_init");
-    odom->subProp("Shape")->subProp("Value")->setValue("Axes");
+    odom->subProp("Shape")->setValue("Axes");
     odom->subProp("Position Tolerance")->setValue("0.001");
     odom->subProp("Angle Tolerance")->setValue("0.01");
 
@@ -107,8 +108,17 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
 
 
     // ── ROS 节点 ─────────────────────────────────────────────────
-    if (!ros_node_->init())
+    ros_ready_ = ros_node_->init();
+    if (!ros_ready_)
         ui_->label_title->setText("ROS Node 初始化失败：请先启动 roscore");
+
+    {
+        ros::NodeHandle pnh("~");
+        std::string serial_port = gripper_serial_port_.toStdString();
+        pnh.param<std::string>("gripper_serial_port", serial_port, serial_port);
+        gripper_serial_port_ = QString::fromStdString(serial_port);
+        ui_->log_text_edit->append(QString("[系统] 夹爪串口: %1").arg(gripper_serial_port_));
+    }
 
     connect(ros_node_, &RosNode::signal_status, this, [this](const QString& msg){
         ui_->log_text_edit->append("[ROS] " + msg);
@@ -161,10 +171,18 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
     connectProcessState(proc_record, ui_->pushButton_record, ui_->label_record, "话题录制");
     
     // proc_picking_system 退出时恢复按钮文字
+    connect(proc_picking_system, &QProcess::readyReadStandardOutput, this, [this]{ appendLog(proc_picking_system); });
+    connect(proc_picking_system, &QProcess::readyReadStandardError,  this, [this]{ appendLog(proc_picking_system); });
     connect(proc_picking_system,
             QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this](int, QProcess::ExitStatus){
                 ui_->pushButton_start_picking->setText("一键启动采摘系统");
+                picking_system_running_ = false;
+                base_pick_enabled_ = false;
+                if (ros_ready_ && ros_node_) {
+                    ros_node_->publishBasePickEnabled(base_pick_enabled_);
+                }
+                updateBasePickLockUi();
                 ui_->log_text_edit->append("[系统] 采摘系统已停止或异常退出");
             });
     connect(proc_calib,
@@ -193,11 +211,8 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
     connect(ui_->pushButton_kill,       &QPushButton::clicked, this, &MainWindow::on_pushButton_kill_clicked);
     connect(ui_->pushButton_record,     &QPushButton::clicked, this, &MainWindow::on_pushButton_record_clicked);
 
-    // ── 按钮绑定（采摘 Tab）──────────────────────────────────────
-    connect(ui_->pushButton_start_picking,  &QPushButton::clicked, this, &MainWindow::on_pushButton_start_picking_clicked);
-    connect(ui_->pushButton_emergency_stop, &QPushButton::clicked, this, &MainWindow::on_pushButton_emergency_stop_clicked);
-    connect(ui_->pushButton_left_arm_home,  &QPushButton::clicked, this, &MainWindow::on_pushButton_left_arm_home_clicked);
-    connect(ui_->pushButton_right_arm_home, &QPushButton::clicked, this, &MainWindow::on_pushButton_right_arm_home_clicked);
+    // ── 采摘 Tab 按钮：setupUi() 已通过 connectSlotsByName 自动连接
+    //    on_pushButton_start_picking_clicked 等槽，此处不再手动 connect
     // ────────────────────────────────────────────────────────────
 
     // ── 雷达话题检测定时器 ────────────────────────────────────────
@@ -220,6 +235,44 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
     ui_->tableWidget_apple_coords->setColumnCount(4);
     ui_->tableWidget_apple_coords->setHorizontalHeaderLabels({"ID", "X", "Y", "Z"});
     ui_->tableWidget_apple_coords->horizontalHeader()->setStretchLastSection(true);
+
+    // 让视觉预览真正占满左侧空间
+    if (ui_->label_detection_image) {
+        ui_->label_detection_image->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        ui_->label_detection_image->setMinimumSize(640, 360);
+        ui_->label_detection_image->setStyleSheet(
+            "QLabel { background:#0f172a; color:#94a3b8; border:1px solid #334155; border-radius:12px; }");
+    }
+    if (ui_->verticalLayout_visual_feedback) {
+        ui_->verticalLayout_visual_feedback->setStretch(0, 10);
+        ui_->verticalLayout_visual_feedback->setStretch(1, 0);
+        ui_->verticalLayout_visual_feedback->setStretch(2, 0);
+    }
+
+    base_pick_enabled_ = false;
+    base_pick_lock_button_ = new QPushButton("底盘抓取：已锁定");
+    base_pick_lock_button_->setCheckable(true);
+    base_pick_lock_button_->setCursor(Qt::PointingHandCursor);
+    base_pick_lock_button_->setToolTip("锁定时任务分配不会下发抓取任务");
+    if (ui_->verticalLayout_picking_control) {
+        ui_->verticalLayout_picking_control->insertWidget(1, base_pick_lock_button_);
+    } else if (ui_->groupBox_picking_control && ui_->groupBox_picking_control->layout()) {
+        ui_->groupBox_picking_control->layout()->addWidget(base_pick_lock_button_);
+    }
+    connect(base_pick_lock_button_, &QPushButton::clicked, this, [this](bool checked) {
+        base_pick_enabled_ = checked;
+        if (ros_ready_ && ros_node_) {
+            ros_node_->publishBasePickEnabled(base_pick_enabled_);
+        }
+        updateBasePickLockUi();
+        ui_->log_text_edit->append(base_pick_enabled_
+                                       ? "[系统] 底盘抓取已放行"
+                                       : "[系统] 底盘抓取已锁定");
+    });
+    if (ros_ready_ && ros_node_) {
+        ros_node_->publishBasePickEnabled(base_pick_enabled_);
+    }
+    updateBasePickLockUi();
 
     auto* calib_layout = qobject_cast<QVBoxLayout*>(ui_->tab_calib->layout());
     if (calib_layout) {
@@ -318,7 +371,9 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
             launchCalibration("eye_to_hand");
         });
         connect(calib_accept_button_, &QPushButton::clicked, this, [this]{
-            ros_node_->publishCalibrationDecision(1);
+            if (ros_ready_ && ros_node_) {
+                ros_node_->publishCalibrationDecision(1);
+            }
             calib_preview_ready_ = false;
             if (calib_accept_button_) calib_accept_button_->setEnabled(false);
             if (calib_reject_button_) calib_reject_button_->setEnabled(false);
@@ -330,7 +385,9 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
             ui_->log_text_edit->append("[标定] 已点击接受当前姿态");
         });
         connect(calib_reject_button_, &QPushButton::clicked, this, [this]{
-            ros_node_->publishCalibrationDecision(2);
+            if (ros_ready_ && ros_node_) {
+                ros_node_->publishCalibrationDecision(2);
+            }
             calib_preview_ready_ = false;
             if (calib_accept_button_) calib_accept_button_->setEnabled(false);
             if (calib_reject_button_) calib_reject_button_->setEnabled(false);
@@ -342,7 +399,9 @@ MainWindow::MainWindow(int argc, char** argv, QWidget* parent)
             ui_->log_text_edit->append("[标定] 已点击跳过当前姿态");
         });
         connect(calib_abort_button_, &QPushButton::clicked, this, [this]{
-            ros_node_->publishCalibrationDecision(3);
+            if (ros_ready_ && ros_node_) {
+                ros_node_->publishCalibrationDecision(3);
+            }
             setCalibrationRunning(false, "已终止标定");
         });
     }
@@ -399,20 +458,20 @@ void MainWindow::setModuleState(QPushButton* button, QLabel* label, bool running
 
 void MainWindow::toggleProcess(QProcess* proc, QPushButton* btn, QLabel* lbl,
                                 const QString& launchCmd) {
-    if (proc->state() == QProcess::Running) {
+    if (proc->state() != QProcess::NotRunning) {
         proc->terminate();
         if (!proc->waitForFinished(2000)) proc->kill();
         setModuleState(btn, lbl, false);
         ui_->log_text_edit->append("[系统] 已停止：" + launchCmd);
-    } else {
-        proc->start("bash", QStringList() << "-lc" << wrapRosCommand(launchCmd));
-        setModuleState(btn, lbl, true);
-        ui_->log_text_edit->append("[系统] 已启动：" + launchCmd);
+        return;
     }
+    proc->start("bash", QStringList() << "-lc" << wrapRosCommand(launchCmd));
+    setModuleState(btn, lbl, true);
+    ui_->log_text_edit->append("[系统] 已启动：" + launchCmd);
 }
 
 void MainWindow::launchCalibration(const QString& mode) {
-    if (proc_calib->state() == QProcess::Running) {
+    if (proc_calib->state() != QProcess::NotRunning) {
         ui_->log_text_edit->append("[标定] 节点已在运行");
         return;
     }
@@ -441,7 +500,7 @@ void MainWindow::launchCalibration(const QString& mode) {
     setCalibrationRunning(true, QString("标定准备中: %1 [%2]").arg(mode, armName));
 
     if (eye_to_hand) {
-        if (proc_calib_cam_->state() != QProcess::Running) {
+        if (proc_calib_cam_->state() == QProcess::NotRunning) {
             const QString camCmd = wrapRosCommand("rosrun img_detect vision_node");
             proc_calib_cam_->start("bash", QStringList() << "-lc" << camCmd);
             if (!proc_calib_cam_->waitForStarted(1500)) {
@@ -529,25 +588,47 @@ void MainWindow::setCalibrationRunning(bool running, const QString& message) {
     }
 }
 
+void MainWindow::updateBasePickLockUi() {
+    if (!base_pick_lock_button_) {
+        return;
+    }
+
+    base_pick_lock_button_->setChecked(base_pick_enabled_);
+    base_pick_lock_button_->setText(base_pick_enabled_ ? "底盘抓取：已放行" : "底盘抓取：已锁定");
+    base_pick_lock_button_->setStyleSheet(base_pick_enabled_
+                                              ? "QPushButton { background:#16a34a; color:white; border:none; border-radius:6px; padding:8px 10px; }"
+                                                "QPushButton:hover { background:#22c55e; }"
+                                                "QPushButton:pressed { background:#15803d; }"
+                                              : "QPushButton { background:#f59e0b; color:white; border:none; border-radius:6px; padding:8px 10px; }"
+                                                "QPushButton:hover { background:#fbbf24; }"
+                                                "QPushButton:pressed { background:#d97706; }");
+}
+
 void MainWindow::startCalibrationProcess(const QString& mode,
                                          const QString& robotIp,
                                          const QString& armName,
                                          const QString& imageTopic,
                                          const QString& cameraInfoTopic) {
-    if (proc_calib->state() == QProcess::Running) {
+    if (proc_calib->state() != QProcess::NotRunning) {
         ui_->log_text_edit->append("[标定] 标定节点已在运行");
         return;
     }
 
-    if (proc_picking_system->state() == QProcess::Running) {
+    if (picking_system_running_) {
         ui_->log_text_edit->append("[标定] 检测到采摘系统正在运行，先停止以释放机械臂连接");
-        proc_picking_system->terminate();
-        if (!proc_picking_system->waitForFinished(2000)) proc_picking_system->kill();
+        QProcess::startDetached("bash", QStringList() << "-c"
+                                                << "pkill -f advance_vision_node; pkill -f target_assign; pkill -f right_robot_control_node; pkill -f left_robot_control_node; pkill -f 'rosrun comm serial'");
         ui_->pushButton_start_picking->setText("一键启动采摘系统");
+        picking_system_running_ = false;
+        base_pick_enabled_ = false;
+        if (ros_ready_ && ros_node_) {
+            ros_node_->publishBasePickEnabled(base_pick_enabled_);
+        }
+        updateBasePickLockUi();
     }
 
     QProcess::startDetached("bash", QStringList() << "-lc"
-                            << wrapRosCommand("pkill -f robot_control_node; pkill -f left_robot_control_node; pkill -f target_assign"));
+                            << wrapRosCommand("pkill -f right_robot_control_node; pkill -f left_robot_control_node; pkill -f target_assign; pkill -f 'rosrun comm serial'"));
 
     const QString cmd = QString(
         "rosrun rokae auto_handeye_calibration "
@@ -586,18 +667,18 @@ void MainWindow::on_pushButton_opencamera_clicked() {
 }
 
 void MainWindow::on_pushButton_openlidar_clicked() {
-    if (proc_lidar->state() == QProcess::Running) {
+    if (proc_lidar->state() != QProcess::NotRunning) {
         proc_lidar->terminate();
         if (!proc_lidar->waitForFinished(2000)) proc_lidar->kill();
         lidar_check_timer_->stop();
         setModuleState(ui_->pushButton_openlidar, ui_->label_lidar, false);
-    } else {
-        proc_lidar->start("bash", QStringList() << "-lc"
-                          << wrapRosCommand("roslaunch livox_ros_driver2 msg_MID360.launch"));
-        setModuleState(ui_->pushButton_openlidar, ui_->label_lidar, true);
-        ui_->log_text_edit->append("[系统] 雷达启动中，等待话题 /livox/lidar ...");
-        lidar_check_timer_->start(500);
+        return;
     }
+    proc_lidar->start("bash", QStringList() << "-lc"
+                      << wrapRosCommand("roslaunch livox_ros_driver2 msg_MID360.launch"));
+    setModuleState(ui_->pushButton_openlidar, ui_->label_lidar, true);
+    ui_->log_text_edit->append("[系统] 雷达启动中，等待话题 /livox/lidar ...");
+    lidar_check_timer_->start(500);
 }
 
 void MainWindow::checkLidarTopic() {
@@ -610,41 +691,41 @@ void MainWindow::checkLidarTopic() {
 }
 
 void MainWindow::on_pushButton_record_clicked() {
-    if (proc_record->state() == QProcess::Running) {
+    if (proc_record->state() != QProcess::NotRunning) {
         proc_record->terminate();
         if (!proc_record->waitForFinished(2000)) proc_record->kill();
         setModuleState(ui_->pushButton_record, ui_->label_record, false);
         ui_->log_text_edit->append("[系统] 话题录制已停止");
-    } else {
-        QString savePath = "/home/y/bag_record";
-        QString ts  = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
-        QString cmd = QString(
-            "mkdir -p %1 && rosbag record -O %1/%2.bag "
-            "/livox/imu /livox/lidar /usb_cam/image_raw /map /odom /amcl_pose"
-        ).arg(savePath, ts);
-        proc_record->start("bash", QStringList() << "-lc" << wrapRosCommand(cmd));
-        setModuleState(ui_->pushButton_record, ui_->label_record, true);
-        ui_->log_text_edit->append("[系统] 话题录制已开始 → " + savePath + "/" + ts + ".bag");
+        return;
     }
+    QString savePath = "/home/y/bag_record";
+    QString ts  = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
+    QString cmd = QString(
+        "mkdir -p %1 && rosbag record -O %1/%2.bag "
+        "/livox/imu /livox/lidar /usb_cam/image_raw /map /odom /amcl_pose"
+    ).arg(savePath, ts);
+    proc_record->start("bash", QStringList() << "-lc" << wrapRosCommand(cmd));
+    setModuleState(ui_->pushButton_record, ui_->label_record, true);
+    ui_->log_text_edit->append("[系统] 话题录制已开始 → " + savePath + "/" + ts + ".bag");
 }
 
 void MainWindow::on_pushButton_kill_clicked() {
     for (QProcess* p : {proc_lio, proc_fusion, proc_camera, proc_lidar, proc_record}) {
-        if (p->state() == QProcess::Running) {
+        if (p->state() != QProcess::NotRunning) {
             p->terminate();
             p->waitForFinished(1000);
-            if (p->state() == QProcess::Running) p->kill();
+            if (p->state() != QProcess::NotRunning) p->kill();
         }
     }
-    if (proc_calib->state() == QProcess::Running) {
+    if (proc_calib->state() != QProcess::NotRunning) {
         proc_calib->terminate();
         proc_calib->waitForFinished(1000);
-        if (proc_calib->state() == QProcess::Running) proc_calib->kill();
+        if (proc_calib->state() != QProcess::NotRunning) proc_calib->kill();
     }
-    if (proc_calib_cam_->state() == QProcess::Running) {
+    if (proc_calib_cam_->state() != QProcess::NotRunning) {
         proc_calib_cam_->terminate();
         proc_calib_cam_->waitForFinished(1000);
-        if (proc_calib_cam_->state() == QProcess::Running) proc_calib_cam_->kill();
+        if (proc_calib_cam_->state() != QProcess::NotRunning) proc_calib_cam_->kill();
     }
     if (calib_cam_check_timer_) calib_cam_check_timer_->stop();
     lidar_check_timer_->stop();
@@ -654,48 +735,95 @@ void MainWindow::on_pushButton_kill_clicked() {
     setModuleState(ui_->pushButton_openlidar,  ui_->label_lidar,  false);
     setModuleState(ui_->pushButton_record,     ui_->label_record, false);
     setCalibrationRunning(false, "标定节点已停止");
+    picking_system_running_ = false;
+    base_pick_enabled_ = false;
+    if (ros_ready_ && ros_node_) {
+        ros_node_->publishBasePickEnabled(base_pick_enabled_);
+    }
+    updateBasePickLockUi();
     QProcess::startDetached("bash", QStringList() << "-c" << "pkill -f roslaunch; pkill -f rosrun");
     ui_->log_text_edit->append("[系统] 所有节点已停止");
 }
 
-// ══════════════════ 采摘 Tab 按钮 ══════════════════
-
 void MainWindow::on_pushButton_start_picking_clicked() {
-    if (proc_picking_system->state() == QProcess::Running) {
+    // 1. 如果当前正在运行，执行停止逻辑
+    if (picking_system_running_ || proc_picking_system->state() != QProcess::NotRunning) {
         proc_picking_system->terminate();
         if (!proc_picking_system->waitForFinished(2000)) proc_picking_system->kill();
+        
+        // 【关键修改 1】：使用 execute 阻塞式杀进程，确保完全清场后才执行下一步
+        QProcess::execute("bash", QStringList() << "-c" 
+            << "pkill -f advance_vision_node; pkill -f target_assign; pkill -f right_robot_control_node; pkill -f left_robot_control_node; pkill -f 'rosrun comm serial'");
+        
         ui_->pushButton_start_picking->setText("一键启动采摘系统");
         ui_->log_text_edit->append("[系统] 采摘系统已停止");
-    } else {
-        proc_picking_system->start("bash", QStringList() << "-lc"
-                                   << wrapRosCommand(
-                                       "rosrun rokae robot_control_node &\n"
-                                       "rosrun rokae left_robot_control_node &\n"
-                                       "rosrun task_assign target_assign &\n"
-                                       "rosrun img_detect advance_vision_node &\n"
-                                       "wait"));
-        ui_->pushButton_start_picking->setText("停止采摘系统");
-        ui_->log_text_edit->append("[系统] 采摘系统已启动");
+        picking_system_running_ = false;
+        base_pick_enabled_ = false;
+        if (ros_ready_ && ros_node_) {
+            ros_node_->publishBasePickEnabled(base_pick_enabled_);
+        }
+        updateBasePickLockUi();
+        return;
     }
+
+    // 2. 启动前清理残留（必须使用阻塞的 execute，绝不能用 startDetached 抢跑）
+    QProcess::execute("bash", QStringList() << "-c" 
+        << "pkill -f advance_vision_node; pkill -f target_assign; pkill -f right_robot_control_node; pkill -f left_robot_control_node; pkill -f 'rosrun comm serial'");
+
+    // 3. 用独立脚本启动，避免 bash -c 内联命令的解析问题
+    QString scriptPath = QDir::homePath() + "/dual_rokae_ws/src/qt_ros_nav/scripts/start_picking.sh";
+    QStringList pickArgs;
+    pickArgs << scriptPath << gripper_serial_port_ << "115200";
+    ui_->log_text_edit->append(QString("[DEBUG] 启动命令: bash %1").arg(pickArgs.join(" ")));
+    proc_picking_system->start("bash", pickArgs);
+
+    if (!proc_picking_system->waitForStarted(1500)) {
+        ui_->log_text_edit->append("!!! [系统] 采摘系统底座进程启动失败");
+        return;
+    }
+
+    ui_->pushButton_start_picking->setText("停止采摘系统");
+    ui_->log_text_edit->append("[系统] 采摘系统已启动 (各节点日志已输出至 /tmp 目录)");
+    picking_system_running_ = true;
+    base_pick_enabled_ = false;
+    if (ros_ready_ && ros_node_) {
+        ros_node_->publishBasePickEnabled(base_pick_enabled_);
+    }
+    updateBasePickLockUi();
 }
 
 void MainWindow::on_pushButton_emergency_stop_clicked() {
-    if (proc_picking_system->state() == QProcess::Running) {
+    // 关停 Qt 进程监控
+    if (proc_picking_system->state() != QProcess::NotRunning) {
         proc_picking_system->terminate();
         if (!proc_picking_system->waitForFinished(2000)) proc_picking_system->kill();
     }
-    QProcess::startDetached("bash", QStringList() << "-c" << "pkill -f advance_vision_node; pkill -f target_assign; pkill -f robot_control_node; pkill -f left_robot_control_node");
+    
+    // 【修改】：急停也必须使用 execute 确保杀干净
+    QProcess::execute("bash", QStringList() << "-c" 
+        << "pkill -f advance_vision_node; pkill -f target_assign; pkill -f right_robot_control_node; pkill -f left_robot_control_node; pkill -f 'rosrun comm serial'");
+    
     ui_->pushButton_start_picking->setText("一键启动采摘系统");
     ui_->log_text_edit->append("[系统] 采摘系统已急停");
+    picking_system_running_ = false;
+    base_pick_enabled_ = false;
+    if (ros_ready_ && ros_node_) {
+        ros_node_->publishBasePickEnabled(base_pick_enabled_);
+    }
+    updateBasePickLockUi();
 }
 
 void MainWindow::on_pushButton_left_arm_home_clicked() {
-    ros_node_->publishLeftArmHomeCommand();
+    if (ros_ready_ && ros_node_) {
+        ros_node_->publishLeftArmHomeCommand();
+    }
     ui_->log_text_edit->append("[系统] 左臂回 Home 位命令已发送");
 }
 
 void MainWindow::on_pushButton_right_arm_home_clicked() {
-    ros_node_->publishRightArmHomeCommand();
+    if (ros_ready_ && ros_node_) {
+        ros_node_->publishRightArmHomeCommand();
+    }
     ui_->log_text_edit->append("[系统] 右臂回 Home 位命令已发送");
 }
 

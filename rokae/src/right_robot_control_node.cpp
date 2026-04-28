@@ -130,7 +130,7 @@ static vector<Vector3d> forwardKinematicsLinkPositions(const vector<double>& q) 
 // =================== 3. 全局状态 ===================
 xMateRobot* robot_ptr = nullptr;
 ros::Publisher pub_serial;
-comm::serialData leftClosedata, leftOpendata;
+comm::serialData rightClosedata, rightOpendata;
 Eigen::Matrix4d T_cam_to_base;
 float depth_scale = 1.0;
 atomic<int> g_motion_id_counter(0);
@@ -559,7 +559,7 @@ bool pickCallBack(task_assign::Target::Request& req, task_assign::Target::Respon
 
         try {
             // (A) 打开夹爪
-            pub_serial.publish(leftOpendata);
+            pub_serial.publish(rightOpendata);
             waitGripper(GRIPPER_OPEN_WAIT);
 
             // (B) MoveJ 到预备点 
@@ -581,7 +581,7 @@ bool pickCallBack(task_assign::Target::Request& req, task_assign::Target::Respon
             waitForFinish(*robot_ptr, id, 0);
 
             // (D) 闭合夹爪
-            pub_serial.publish(leftClosedata);
+            pub_serial.publish(rightClosedata);
             waitGripper(GRIPPER_CLOSE_WAIT);
 
             // (E) MoveL 撤退
@@ -624,7 +624,7 @@ bool pickCallBack(task_assign::Target::Request& req, task_assign::Target::Respon
         g_monitor_active.store(false);
 
         // (G) 释放
-        pub_serial.publish(leftOpendata);
+        pub_serial.publish(rightOpendata);
         waitGripper(GRIPPER_OPEN_WAIT);
 
         resp.success = true;
@@ -642,7 +642,7 @@ bool pickCallBack(task_assign::Target::Request& req, task_assign::Target::Respon
 
 int main(int argc, char* argv[]) {
     setlocale(LC_ALL, "");
-    ros::init(argc, argv, "robot_control_node");
+    ros::init(argc, argv, "right_robot_control_node");
     ros::NodeHandle nh;
 
     nh.param("dist_pre",           DIST_PRE,           0.15);
@@ -664,8 +664,8 @@ int main(int argc, char* argv[]) {
 
     // 右臂夹爪串口指令
     pub_serial = nh.advertise<comm::serialData>("ap_robot/serial", 10);
-    leftClosedata.data = {0xaa, 0x55, 0x02, 0x00, 0x02, 0x58, 0x4e, 0x05, 0xd8, 0xf0, 0xcd, 0x01, 0x02, 0x03, 0x0d, 0x0a};
-    leftOpendata.data  = {0xaa, 0x55, 0x02, 0x01, 0x02, 0x58, 0x4e, 0x05, 0xd8, 0xf0, 0xcd, 0x01, 0x02, 0x03, 0x0d, 0x0a};
+    rightClosedata.data = {0xaa, 0x55, 0x03, 0x00, 0x08, 0x34, 0x4e, 0x05, 0xd8, 0xf0, 0xcd, 0x01, 0x02, 0x03, 0x0d, 0x0a};
+    rightOpendata.data  = {0xaa, 0x55, 0x03, 0x01, 0x08, 0x34, 0x50, 0x05, 0x27, 0x10, 0x3c, 0x01, 0x02, 0x03, 0x0d, 0x0a};
 
     ros::Subscriber sub_obs = nh.subscribe("ap_robot/obstacles", 1, obstacleCallback);
     ros::Subscriber sub_ack = nh.subscribe("ap_robot/serial_ack", 10, serialAckCallback);

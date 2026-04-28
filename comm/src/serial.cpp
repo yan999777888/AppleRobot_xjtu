@@ -52,10 +52,18 @@ void readThread() {
 int main(int argc, char** argv) {
     ros::init(argc, argv, "serial");
     ros::NodeHandle nh;
+    ros::NodeHandle pnh("~");
 
-    serial::Timeout timeout = serial::Timeout::simpleTimeout(100);
-    sp.setPort("/dev/ttyCH341USB0");
-    sp.setBaudrate(115200);
+    std::string port_name = "/dev/ttyUSB0";
+    int baudrate = 115200;
+    int timeout_ms = 100;
+    pnh.param<std::string>("port", port_name, port_name);
+    pnh.param("baudrate", baudrate, baudrate);
+    pnh.param("timeout_ms", timeout_ms, timeout_ms);
+
+    serial::Timeout timeout = serial::Timeout::simpleTimeout(timeout_ms);
+    sp.setPort(port_name);
+    sp.setBaudrate(static_cast<uint32_t>(baudrate));
     sp.setTimeout(timeout);
 
     try {
@@ -69,7 +77,7 @@ int main(int argc, char** argv) {
         ROS_ERROR_STREAM("Port open failed.");
         return -1;
     }
-    ROS_INFO_STREAM("/dev/ttyCH341USB0 is opened.");
+    ROS_INFO_STREAM(port_name << " is opened.");
 
     pub_ack = nh.advertise<std_msgs::Bool>("ap_robot/serial_ack", 10);
     ros::Subscriber sub = nh.subscribe("ap_robot/serial", 10, arrayCallback);

@@ -47,13 +47,13 @@ int    NUM_SAMPLES      = 120;
 
 // 左臂 Home 点姿态参考（采摘示教位 103°,-83°,78°）
 // M_PI/180 = 0.017453
-const double HOME_RX = -1.579837;   // 103 * π/180
-const double HOME_RY =  0.929440;  // -83 * π/180
-const double HOME_RZ = -1.43685976;   // 78  * π/180
+const double HOME_RX = -1.419545;   // 103 * π/180
+const double HOME_RY =  0.89989;  // -83 * π/180
+const double HOME_RZ = -1.341966;   // 78  * π/180
 
 // 左臂放置点（笛卡尔 {x, y, z, rx, ry, rz}，单位 m/rad）
 // 来源：leftRokaegodemo moveJ_releaseCartpos
-const array<double, 6> DROP_POSE = {0.368589, 0.212135, 0.148289, -1.579837, 0.929440, -1.43685976};
+const array<double, 6> DROP_POSE = {0.749277, 0.249, 0.221395, -1.419545, 0.89989, -1.341966};
 
 // =================== 2. 正向运动学（硬编码 DH）===================
 //
@@ -612,7 +612,7 @@ int main(int argc, char* argv[]) {
         robot_ptr->setDefaultSpeed(100, ec);
 
         Toolset tool;
-        tool.end = {{0, 0, 0.35}, {0, 0, 0}};
+        tool.end = {{0, 0, 0.25}, {0, 0, 0}};
         tool.load.mass = 0.708993;
         robot_ptr->setToolset(tool, ec);
 
