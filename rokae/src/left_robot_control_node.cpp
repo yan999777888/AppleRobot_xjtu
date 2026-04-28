@@ -1,4 +1,5 @@
 #include "ros/ros.h"
+#include "ros/package.h"
 #include "task_assign/Target.h"
 #include <thread>
 #include "rokae/robot.h"
@@ -9,6 +10,7 @@
 #include "comm/serialData.h"
 #include <fstream>
 #include <string>
+#include <sstream>
 #include <stdexcept>
 #include <vector>
 #include <algorithm>
@@ -51,9 +53,14 @@ const double HOME_RX = -1.419545;   // 103 * π/180
 const double HOME_RY =  0.89989;  // -83 * π/180
 const double HOME_RZ = -1.341966;   // 78  * π/180
 
-// 左臂放置点（笛卡尔 {x, y, z, rx, ry, rz}，单位 m/rad）
-// 来源：leftRokaegodemo moveJ_releaseCartpos
-const array<double, 6> DROP_POSE = {0.749277, 0.249, 0.221395, -1.419545, 0.89989, -1.341966};
+// 左臂放置点与过渡点，由 left_drop.txt 配置
+array<double, 6> DROP_POSE = {-0.031550, 0.470405, 0.408085, 1.791179, 1.174973, -2.831744};
+vector<array<double, 6>> DROP_TRANSITIONS = {
+    {0.252950, 0.470405, 0.408115, 1.791162, 1.175043, -2.831587},
+    {0.324507, 0.470405, 0.408083, 1.791389, 1.175060, -2.831360},
+    {0.569419, 0.470405, 0.407999, 1.326346, 1.341111, 1.980059},
+    {0.667165, 0.294619, 0.407985, 0.648809, 1.353381, 0.960455},
+};
 
 // =================== 2. 正向运动学（硬编码 DH）===================
 //
@@ -191,6 +198,40 @@ void jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg) {
 
 string genId(const string& prefix) {
     return prefix + "_L_" + to_string(g_motion_id_counter++);
+}
+
+bool parsePoseLine(const string& line, array<double, 6>& pose) {
+    auto lb = line.find('[');
+    auto rb = line.find(']');
+    if (lb == string::npos || rb == string::npos || rb <= lb) return false;
+
+    string values = line.substr(lb + 1, rb - lb - 1);
+    replace(values.begin(), values.end(), ',', ' ');
+    stringstream ss(values);
+    for (double& v : pose) {
+        if (!(ss >> v)) return false;
+    }
+    return true;
+}
+
+bool loadDropTrajectory(const string& path) {
+    ifstream f(path);
+    if (!f.is_open()) return false;
+
+    vector<array<double, 6>> poses;
+    string line;
+    while (getline(f, line)) {
+        if (line.find("position:") == string::npos) continue;
+        array<double, 6> pose{};
+        if (parsePoseLine(line, pose)) {
+            poses.push_back(pose);
+        }
+    }
+    if (poses.empty()) return false;
+
+    DROP_POSE = poses.front();
+    DROP_TRANSITIONS.assign(poses.begin() + 1, poses.end());
+    return true;
 }
 
 Eigen::Matrix4d loadMatrix(const string& path) {
@@ -529,20 +570,43 @@ bool pickCallBack(task_assign::Target::Request& req, task_assign::Target::Respon
     if (success) {
         g_monitor_active.store(true);
         g_link_collision_detected.store(false);
-        id = genId("drop");
-        MoveJCommand cmd_drop({DROP_POSE[0], DROP_POSE[1], DROP_POSE[2],
-                               DROP_POSE[3], DROP_POSE[4], DROP_POSE[5]});
-        cmd_drop.speed = TRANSIT_SPEED;
-        robot_ptr->moveAppend({cmd_drop}, id, ec);
-        robot_ptr->moveStart(ec);
-        try { waitForFinish(*robot_ptr, id, 0); } catch (...) {}
+        auto moveJointPose = [&](const array<double, 6>& pose, const string& prefix) {
+            id = genId(prefix);
+            MoveJCommand cmd({pose[0], pose[1], pose[2], pose[3], pose[4], pose[5]});
+            cmd.speed = TRANSIT_SPEED;
+            robot_ptr->moveAppend({cmd}, id, ec);
+            robot_ptr->moveStart(ec);
+            try {
+                waitForFinish(*robot_ptr, id, 0);
+                return true;
+            } catch (const exception& e) {
+                ROS_WARN("左臂放置运动 %s 失败: %s", prefix.c_str(), e.what());
+                return false;
+            }
+        };
+
+        bool drop_ok = true;
+        for (auto it = DROP_TRANSITIONS.rbegin(); it != DROP_TRANSITIONS.rend(); ++it) {
+            if (!moveJointPose(*it, "drop_in")) { drop_ok = false; break; }
+        }
+        if (drop_ok) drop_ok = moveJointPose(DROP_POSE, "drop");
         g_monitor_active.store(false);
 
-        pub_serial.publish(leftOpendata);
-        waitGripper(GRIPPER_OPEN_WAIT);
+        if (drop_ok) {
+            pub_serial.publish(leftOpendata);
+            ros::Duration(1.0).sleep();
+            waitGripper(GRIPPER_OPEN_WAIT);
 
-        resp.success = true; resp.message = "Pick Success";
-        ROS_INFO("左臂采摘完成！");
+            g_monitor_active.store(true);
+            for (const auto& pose : DROP_TRANSITIONS) {
+                if (!moveJointPose(pose, "drop_out")) { drop_ok = false; break; }
+            }
+            g_monitor_active.store(false);
+        }
+
+        resp.success = drop_ok;
+        resp.message = drop_ok ? "Pick Success" : "Drop motion failed";
+        if (drop_ok) ROS_INFO("左臂采摘完成！");
     } else {
         resp.success = false; resp.message = "All strategies blocked or failed";
         ROS_ERROR("左臂所有策略均失败");
@@ -577,6 +641,13 @@ int main(int argc, char* argv[]) {
     nh.param("rack_ymax", g_rack.ymax,  0.35);
     nh.param("rack_zmin", g_rack.zmin,  0.00);
     nh.param("rack_zmax", g_rack.zmax,  0.885);
+
+    const string drop_path = ros::package::getPath("rokae") + "/src/left_drop.txt";
+    if (loadDropTrajectory(drop_path)) {
+        ROS_INFO("左臂放置/过渡点已从 %s 加载", drop_path.c_str());
+    } else {
+        ROS_WARN("左臂放置/过渡点加载失败，继续使用默认值");
+    }
 
     // 左臂夹爪串口指令（与右臂字节不同，来自 leftRokaegodemo.cpp）
     pub_serial = nh.advertise<comm::serialData>("ap_robot/serial", 10);
