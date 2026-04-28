@@ -268,7 +268,7 @@ bool isInRack(const Vector3d& p, double margin) {
 struct MountCylinder {
     double cx     =  0.0;    // 中心 X
     double cy     =  0.0;    // 中心 Y
-    double radius =  0.15;   // 圆柱半径
+    double radius =  0.20;   // 圆柱半径（含安全裕度）
     double zmin   =  0.0;    // 底部
     double zmax   =  0.885;  // 顶部
 } g_mount;
@@ -333,7 +333,7 @@ bool checkCollision(const Vector3d& start, const Vector3d& end, double radius) {
 // 但 buildLeftMountTransform() 已处理此差异，FK 结果自动正确。
 
 static const double LINK_RADIUS[7] = {
-    0.08, 0.07, 0.07, 0.06, 0.06, 0.05, 0.04,
+    0.08, 0.07, 0.07, 0.06, 0.06, 0.06, 0.07,
 };
 
 void linkCollisionMonitorThread() {

@@ -292,7 +292,7 @@ bool isInRack(const Vector3d& p, double margin) {
 struct MountCylinder {
     double cx     =  0.0;
     double cy     =  0.0;
-    double radius =  0.15;
+    double radius =  0.20;
     double zmin   =  0.0;
     double zmax   =  0.885;
 } g_mount;
@@ -373,8 +373,8 @@ static const double LINK_RADIUS[7] = {
     0.07,  // link2 → link3
     0.06,  // link3 → link4
     0.06,  // link4 → link5
-    0.05,  // link5 → link6
-    0.04,  // link6 → tool
+    0.06,  // link5 → link6
+    0.07,  // link6 → tool
 };
 
 void linkCollisionMonitorThread() {

@@ -5,6 +5,7 @@
 #include <mutex>
 #include <atomic>
 #include <thread>
+#include <chrono>
 
 using namespace std;
 
@@ -27,6 +28,11 @@ atomic<bool>  g_base_pick_enabled(false);
 // 各臂是否正在采摘（防止重复派遣）
 atomic<bool>  g_left_busy(false);
 atomic<bool>  g_right_busy(false);
+
+mutex         g_cooldown_mutex;
+chrono::steady_clock::time_point g_left_cooldown_until;
+chrono::steady_clock::time_point g_right_cooldown_until;
+double        g_cooldown_sec = 3.0;
 
 // ROS service clients（在 main 中初始化，线程中使用）
 ros::ServiceClient g_left_client;
@@ -86,6 +92,10 @@ void leftPickThread(AppleInfo apple) {
     else
         ROS_ERROR("左臂服务调用失败");
 
+    {
+        lock_guard<mutex> lk(g_cooldown_mutex);
+        g_left_cooldown_until = chrono::steady_clock::now() + chrono::milliseconds((int)(g_cooldown_sec * 1000));
+    }
     g_left_busy = false;
 }
 
@@ -102,6 +112,10 @@ void rightPickThread(AppleInfo apple) {
     else
         ROS_ERROR("右臂服务调用失败");
 
+    {
+        lock_guard<mutex> lk(g_cooldown_mutex);
+        g_right_cooldown_until = chrono::steady_clock::now() + chrono::milliseconds((int)(g_cooldown_sec * 1000));
+    }
     g_right_busy = false;
 }
 
@@ -111,6 +125,9 @@ int main(int argc, char* argv[]) {
     setlocale(LC_ALL, "");
     ros::init(argc, argv, "task_assign");
     ros::NodeHandle nh;
+
+    nh.param("pick_cooldown_sec", g_cooldown_sec, 3.0);
+    ROS_INFO("采摘冷却时间: %.1f 秒", g_cooldown_sec);
 
     // 等待两臂服务上线再订阅，避免派遣到未就绪的臂
     ROS_INFO("等待左右臂服务...");
@@ -153,18 +170,32 @@ int main(int argc, char* argv[]) {
         sortByDepth(left_apples);
         sortByDepth(right_apples);
 
-        // 左臂空闲且有任务 → 派遣
+        // 左臂空闲且有任务且冷却结束 → 派遣
         if (!g_left_busy && !left_apples.empty()) {
-            g_left_busy = true;
-            ROS_INFO("派遣左臂，左区苹果数: %ld", left_apples.size());
-            thread(leftPickThread, left_apples.front()).detach();
+            bool cooled = false;
+            {
+                lock_guard<mutex> lk(g_cooldown_mutex);
+                cooled = chrono::steady_clock::now() >= g_left_cooldown_until;
+            }
+            if (cooled) {
+                g_left_busy = true;
+                ROS_INFO("派遣左臂，左区苹果数: %ld", left_apples.size());
+                thread(leftPickThread, left_apples.front()).detach();
+            }
         }
 
-        // 右臂空闲且有任务 → 派遣
+        // 右臂空闲且有任务且冷却结束 → 派遣
         if (!g_right_busy && !right_apples.empty()) {
-            g_right_busy = true;
-            ROS_INFO("派遣右臂，右区苹果数: %ld", right_apples.size());
-            thread(rightPickThread, right_apples.front()).detach();
+            bool cooled = false;
+            {
+                lock_guard<mutex> lk(g_cooldown_mutex);
+                cooled = chrono::steady_clock::now() >= g_right_cooldown_until;
+            }
+            if (cooled) {
+                g_right_busy = true;
+                ROS_INFO("派遣右臂，右区苹果数: %ld", right_apples.size());
+                thread(rightPickThread, right_apples.front()).detach();
+            }
         }
 
         rate.sleep();
