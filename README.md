@@ -436,3 +436,8 @@ source ~/.bashrc
   - 提供完整的Qt图形界面
   - 支持手眼标定功能
   - 实现智能任务分配算法
+
+
+
+  cat /tmp/picking_system.log 2>/dev/null; echo "==="; tail -20 /tmp/right_robot_control_node.log 2>/dev/null; echo "==="; tail -20 /tmp/left_robot_control_node.log 2>/dev/null; echo "==="; tail -20 /tmp/target_assign.log 2>/dev/null; echo "==="; tail -20 /tmp/advance_vision_node.log 2>/dev/null   
+  - 日志查看
